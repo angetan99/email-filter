@@ -85,6 +85,40 @@ for i, model in enumerate(models):
     plt.ylabel("True Class")
     plt.show()
 
+
+# evaluation before threshold tuning (precision-recall curve)
+from sklearn.metrics import precision_recall_curve
+import matplotlib.pyplot as plt
+
+# get probabilities for positive class (junk)
+lr_probs = lr.predict_proba(X_test)[:, 1]
+
+precisions, recalls, thresholds = precision_recall_curve(y_test, lr_probs)
+
+plt.figure()
+plt.plot(recalls, precisions)
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.title('Precision-Recall Curve - Logistic Regression')
+plt.show()
+
+import pandas as pd
+pr_table = pd.DataFrame({
+    'threshold': thresholds,
+    'precision': precisions[:-1],
+    'recall': recalls[:-1]
+})
+print(pr_table[pr_table['threshold'].between(0.3, 0.9)].iloc[::10])
+
+# evaluate at custom threshold
+threshold = 0.884695
+lr_probs = lr.predict_proba(X_test)[:, 1]
+y_pred_custom = (lr_probs >= threshold).astype(int)
+
+print("--- Custom Threshold Evaluation ---")
+print(classification_report(y_test, y_pred_custom, target_names=le.classes_))
+print(confusion_matrix(y_test, y_pred_custom))
+
 # cross validate
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import StratifiedKFold, cross_val_score
@@ -113,3 +147,13 @@ results = pd.DataFrame({
 wrong = results[results['true_label'] != results['predicted']]
 print(f"Misclassified: {len(wrong)} out of {len(results)}")
 print(wrong.head(10))
+
+# writing to file on disk so i don't need to retrain every time
+import joblib
+joblib.dump(lr, 'email_classifier.pkl')
+joblib.dump(vectorizer, 'vectorizer.pkl')
+
+# loading back:
+# import joblib
+# lr = joblib.load('email_classifier.pkl')
+# vectorizer = joblib.load('vectorizer.pkl')
