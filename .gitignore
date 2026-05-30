@@ -16,3 +16,5 @@ emails_cleaned.csv
 
 # Generated model evaluation artifacts
 train results/
+email_classifier.pkl
+vectorizer.pkl
