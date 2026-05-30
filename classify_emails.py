@@ -27,7 +27,7 @@ from googleapiclient.errors import HttpError
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
 # your chosen threshold from Phase 3
-THRESHOLD = 0.884695
+THRESHOLD = 0.75
 
 # how many unread emails to classify at a time
 MAX_EMAILS = 50
