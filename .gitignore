@@ -18,3 +18,7 @@ emails_cleaned.csv
 train results/
 email_classifier.pkl
 vectorizer.pkl
+
+# logs and database
+classifier.log
+email_classifier.db
