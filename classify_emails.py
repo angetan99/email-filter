@@ -18,6 +18,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+import sqlite3
+from time import strftime, gmtime
 
 # ------------------------------------------------------------
 # CONFIG
@@ -32,6 +34,51 @@ THRESHOLD = 0.75
 # how many unread emails to classify at a time
 MAX_EMAILS = 50
 
+# ------------------------------------------------------------
+# SQLite logging setup
+# ------------------------------------------------------------
+
+# SQLite database file for logging
+DB_PATH = '/Users/angetan/Projects/email_classifier/email_logs.db'
+
+def setup_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS runs (
+        timestamp TEXT,
+        emails_processed INTEGER,
+        junk INTEGER,
+        important INTEGER,
+        junk_pct REAL
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS emails (
+        timestamp TEXT,
+        sender TEXT,
+        subject TEXT,
+        probability REAL,
+        label TEXT
+    )''')
+    conn.commit()
+    conn.close()
+
+def log_run(total, junk, important):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    timestamp = strftime('%Y-%m-%d %H:%M:%S', gmtime())
+    junk_pct = round((junk / total * 100), 1) if total > 0 else 0
+    row = (timestamp, total, junk, important, junk_pct)
+    c.execute('INSERT INTO runs VALUES (?, ?, ?, ?, ?)', row)
+    conn.commit()
+    conn.close()
+
+def log_email(sender, subject, probability, label):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    timestamp = strftime('%Y-%m-%d %H:%M:%S', gmtime())
+    row = (timestamp, sender, subject[:200], probability, label)
+    c.execute('INSERT INTO emails VALUES (?, ?, ?, ?, ?)', row)
+    conn.commit()
+    conn.close()
 # ------------------------------------------------------------
 # LOAD MODEL
 # ------------------------------------------------------------
@@ -114,6 +161,9 @@ if __name__ == "__main__":
     service = get_gmail_service()
     print("     Done.")
 
+    print("Setting up database...")
+    setup_db()
+
     print(f"\nFetching and classifying up to {MAX_EMAILS} unread emails...")
     response = service.users().messages().list(
         userId="me",
@@ -152,9 +202,12 @@ if __name__ == "__main__":
         else:
             label = "Important"
             important_count += 1
-
+        
+        log_email(sender, subject, prob, label)
         print(f"  [{i+1}/{len(messages)}] {label} ({prob:.3f}) — {subject[:60]}")
 
     print(f"\n--- Done ---")
     print(f"Junk:      {junk_count}")
     print(f"Important: {important_count}")
+    log_run(len(messages), junk_count, important_count)
+    print(f"Logged to database.")
