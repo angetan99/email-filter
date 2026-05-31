@@ -38,8 +38,11 @@ MAX_EMAILS = 50
 # SQLite logging setup
 # ------------------------------------------------------------
 
+# Local repo base directory
+BASE_DIR = os.path.dirname(__file__)
+
 # SQLite database file for logging
-DB_PATH = '/Users/angetan/Projects/email-filter/email_logs.db'
+DB_PATH = os.path.join(BASE_DIR, "email_logs.db")
 
 def setup_db():
     conn = sqlite3.connect(DB_PATH)
@@ -84,8 +87,8 @@ def log_email(sender, subject, probability, label):
 # ------------------------------------------------------------
 
 print("Loading model and vectorizer...")
-lr = joblib.load("email_classifier.pkl")
-vectorizer = joblib.load("vectorizer.pkl")
+lr = joblib.load(os.path.join(BASE_DIR, "email_classifier.pkl"))
+vectorizer = joblib.load(os.path.join(BASE_DIR, "vectorizer.pkl"))
 print("Done.")
 
 # ------------------------------------------------------------
