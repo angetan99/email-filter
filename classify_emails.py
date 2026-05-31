@@ -39,7 +39,7 @@ MAX_EMAILS = 50
 # ------------------------------------------------------------
 
 # SQLite database file for logging
-DB_PATH = '/Users/angetan/Projects/email_classifier/email_logs.db'
+DB_PATH = '/Users/angetan/Projects/email-filter/email_logs.db'
 
 def setup_db():
     conn = sqlite3.connect(DB_PATH)
