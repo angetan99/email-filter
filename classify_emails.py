@@ -32,7 +32,7 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 THRESHOLD = 0.75
 
 # how many unread emails to classify at a time
-MAX_EMAILS = 50
+# MAX_EMAILS = 50
 
 # ------------------------------------------------------------
 # SQLite logging setup
@@ -44,8 +44,8 @@ BASE_DIR = os.path.dirname(__file__)
 # SQLite database file for logging
 DB_PATH = os.path.join(BASE_DIR, "email_logs.db")
 
-def setup_db():
-    conn = sqlite3.connect(DB_PATH)
+def setup_db(conn):
+    # conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS runs (
         timestamp TEXT,
@@ -62,26 +62,26 @@ def setup_db():
         label TEXT
     )''')
     conn.commit()
-    conn.close()
+    # conn.close()
 
-def log_run(total, junk, important):
-    conn = sqlite3.connect(DB_PATH)
+def log_run(conn, total, junk, important):
+    # conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     timestamp = strftime('%Y-%m-%d %H:%M:%S', gmtime())
     junk_pct = round((junk / total * 100), 1) if total > 0 else 0
     row = (timestamp, total, junk, important, junk_pct)
     c.execute('INSERT INTO runs VALUES (?, ?, ?, ?, ?)', row)
     conn.commit()
-    conn.close()
+    # conn.close()
 
-def log_email(sender, subject, probability, label):
-    conn = sqlite3.connect(DB_PATH)
+def log_email(conn, sender, subject, probability, label):
+    # conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     timestamp = strftime('%Y-%m-%d %H:%M:%S', gmtime())
     row = (timestamp, sender, subject[:200], probability, label)
     c.execute('INSERT INTO emails VALUES (?, ?, ?, ?, ?)', row)
     conn.commit()
-    conn.close()
+    # conn.close()
 # ------------------------------------------------------------
 # LOAD MODEL
 # ------------------------------------------------------------
@@ -147,7 +147,7 @@ def extract_body(payload):
     return ""
 
 # ------------------------------------------------------------
-# CLASSIFY
+# CLASSIFY + GET UNREAD
 # ------------------------------------------------------------
 
 def classify_email(sender, subject, body):
@@ -156,29 +156,49 @@ def classify_email(sender, subject, body):
     prob = lr.predict_proba(vectorized)[0][1]
     return prob
 
+def get_unread_messages(service):
+    messages = []
+    response = service.users().messages().list(
+        userId="me",
+        labelIds=["INBOX", "UNREAD"]
+    ).execute()
+    messages.extend(response.get("messages", []))
+    while "nextPageToken" in response:
+        response = service.users().messages().list(
+            userId="me",
+            labelIds=["INBOX", "UNREAD"],
+            pageToken=response["nextPageToken"]
+        ).execute()
+        messages.extend(response.get("messages", []))
+    return messages
+
 # ------------------------------------------------------------
 # MAIN
 # ------------------------------------------------------------
 
 if __name__ == "__main__":
+
     print("\n--- Email Classifier ---")
 
     print("\nAuthenticating...")
     service = get_gmail_service()
     print("     Done.")
 
+    # print("Setting up database...")
+    # setup_db()
+
     print("Setting up database...")
-    setup_db()
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    setup_db(conn)
 
-    print(f"\nFetching and classifying up to {MAX_EMAILS} unread emails...")
-    response = service.users().messages().list(
-        userId="me",
-        labelIds=["INBOX", "UNREAD"],
-        maxResults=MAX_EMAILS
-    ).execute()
+    messages = get_unread_messages(service)
 
-    messages = response.get("messages", [])
-    print(f"     Found {len(messages)} unread emails.")
+    if not messages:
+        print("No unread emails. Exiting.")
+        conn.close()
+        exit()
+
+    print(f"Found {len(messages)} unread emails.")
 
     junk_count = 0
     important_count = 0
@@ -209,11 +229,12 @@ if __name__ == "__main__":
             label = "Important"
             important_count += 1
         
-        log_email(sender, subject, prob, label)
+        log_email(conn, sender, subject, prob, label)
         print(f"  [{i+1}/{len(messages)}] {label} ({prob:.3f}) — {subject[:60]}")
 
     print(f"\n--- Done ---")
     print(f"Junk:      {junk_count}")
     print(f"Important: {important_count}")
-    log_run(len(messages), junk_count, important_count)
+    log_run(conn, len(messages), junk_count, important_count)
+    conn.close()
     print(f"Logged to database.")
