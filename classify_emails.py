@@ -187,18 +187,34 @@ if __name__ == "__main__":
     # print("Setting up database...")
     # setup_db()
 
+    service = get_gmail_service()
+    results = service.users().labels().list(userId='me').execute()
+    for label in results['labels']:
+        if 'CATEGORY' in label['id']:
+            print(label['id'], '|', label['name']) 
+
     print("Setting up database...")
     conn = sqlite3.connect(DB_PATH, timeout=10)
     setup_db(conn)
 
     messages = get_unread_messages(service)
+    EXCLUDE_LABELS = {"CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"}
+
+    filtered = []
+    for msg in messages:
+        full = service.users().messages().get(userId="me", id=msg["id"], format="metadata").execute()
+        msg_labels = set(full.get("labelIds", []))
+        if not msg_labels & EXCLUDE_LABELS:
+            filtered.append(msg)
+
+    messages = filtered
 
     if not messages:
         print("No unread emails. Exiting.")
         conn.close()
         exit()
 
-    print(f"Found {len(messages)} unread emails.")
+    print(f"Found {len(messages)} Primary unread emails.")
 
     junk_count = 0
     important_count = 0
